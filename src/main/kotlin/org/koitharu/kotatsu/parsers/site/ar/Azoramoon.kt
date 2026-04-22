@@ -144,6 +144,10 @@ internal class Azoramoon(context: MangaLoaderContext) :
 
 			if (obj.optString("postType") == "رواية" || obj.optString("type") == "رواية") isNovel = true
 
+			if (obj.optString("seriesType").equals("NOVEL", ignoreCase = true)) isNovel = true
+
+			if (slug.contains("novel", ignoreCase = true)) isNovel = true
+
 			if (isNovel) continue
 
 			result.add(

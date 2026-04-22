@@ -1,10 +1,13 @@
 package org.koitharu.kotatsu.parsers.site.mangahub.en
 
+import org.koitharu.kotatsu.parsers.Broken
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaSourceParser
 import org.koitharu.kotatsu.parsers.config.ConfigKey
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.site.mangahub.MangaHubParser
+
+@Broken("BLOCKED BY CLOUDFARE")
 
 @MangaSourceParser("MANGAHUB_IO", "MangaHub", "en")
 internal class MangaHubIo(context: MangaLoaderContext) :
