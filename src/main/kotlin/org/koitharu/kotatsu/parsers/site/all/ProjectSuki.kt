@@ -106,19 +106,20 @@ internal class ProjectSuki(context: MangaLoaderContext) :
 		return parseBookList(webClient.httpGet(url.build(), getRequestHeaders()).parseHtml())
 	}
 
-	private suspend fun parseBookList(document: Document): List<Manga> {
+	private fun parseBookList(document: Document): List<Manga> {
 		val result = LinkedHashMap<String, Manga>()
-		document.select("a[href]").forEach { anchor ->
-			val bookId = anchor.absUrl("href").toBookId() ?: return@forEach
-			val container = anchor.parents().firstOrNull { parent ->
-				parent.select("a[href]").any { it.absUrl("href").toBookId() == bookId } &&
-					parent.select("img").isNotEmpty() &&
-					parent.hasBookTitleLink(bookId)
-			} ?: anchor.parents().firstOrNull { parent ->
-				parent.select("a[href]").any { it.absUrl("href").toBookId() == bookId } &&
-					parent.select("img").isNotEmpty()
-			} ?: anchor
-			result.putIfAbsent(bookId, parseBookSummary(bookId, container, anchor))
+		document.select("div.browse:has(a[href])").forEach { container ->
+			val titleAnchor = container.select(".details h4 a[href], h4 a[href]")
+				.firstOrNull { it.absUrl("href").toBookId() != null && it.text().isValidBookTitle(it.absUrl("href").toBookId().orEmpty()) }
+			val bookId = titleAnchor?.absUrl("href")?.toBookId()
+				?: container.select("a[href]").firstNotNullOfOrNull { it.absUrl("href").toBookId() }
+				?: return@forEach
+			if (bookId in result) {
+				return@forEach
+			}
+			val anchor = titleAnchor ?: container.select("a[href]").firstOrNull { it.absUrl("href").toBookId() == bookId }
+				?: return@forEach
+			result[bookId] = parseBookSummary(bookId, container, anchor)
 		}
 		return result.values.toList()
 	}
@@ -159,11 +160,6 @@ internal class ProjectSuki(context: MangaLoaderContext) :
 			authors = emptySet(),
 			source = source,
 		)
-	}
-
-	private fun Element.hasBookTitleLink(bookId: String): Boolean {
-		return select(".details h4 a[href], h1 a[href], h2 a[href], h3 a[href], h4 a[href]")
-			.any { it.absUrl("href").toBookId() == bookId && it.text().isValidBookTitle(bookId) }
 	}
 
 	private fun String?.isValidBookTitle(bookId: String): Boolean {

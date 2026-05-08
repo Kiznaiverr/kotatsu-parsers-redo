@@ -8,6 +8,7 @@ import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.koitharu.kotatsu.parsers.Broken
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaSourceParser
 import org.koitharu.kotatsu.parsers.config.ConfigKey
@@ -44,6 +45,7 @@ import org.koitharu.kotatsu.parsers.util.json.mapJSONNotNull
 import java.util.EnumSet
 import java.util.Locale
 
+@Broken
 @MangaSourceParser("COMIKURO", "Comikuro", "en")
 internal class Comikuro(context: MangaLoaderContext) : PagedMangaParser(context, MangaParserSource.COMIKURO, 21) {
 
