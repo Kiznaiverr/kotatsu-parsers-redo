@@ -312,30 +312,67 @@ internal class Comix(context: MangaLoaderContext) :
     }
 
     private suspend fun webViewChapterList(hashId: String): JSONArray {
-        val pathPrefix = "/api/v1/manga/$hashId/chapters?order%5Bnumber%5D=desc&limit=100&page="
+        val pathPrefix = "/api/v1/manga/$hashId/chapters?order%5Bnumber%5D=desc&limit=$CHAPTER_API_LIMIT&page="
         logDebug("webViewChapterList start hashId=$hashId prefix=$pathPrefix")
         val json = evaluateWebViewJson(
             label = "chapters:$hashId",
             script = buildWebViewApiScript(
                 """
                     const all = [];
+                    const compact = (item) => ({
+                        id: item.id,
+                        number: item.number,
+                        name: item.name || "",
+                        createdAtFormatted: item.createdAtFormatted || "",
+                        isOfficial: !!item.isOfficial,
+                        group: item.group || item.scanlation_group || null
+                    });
+                    const mostActiveGroupId = (items) => {
+                        const counts = new Map();
+                        for (const item of items) {
+                            const group = item.group || item.scanlation_group;
+                            const id = group && group.id;
+                            if (id === undefined || id === null) continue;
+                            counts.set(String(id), (counts.get(String(id)) || 0) + 1);
+                        }
+                        let best = "";
+                        let bestCount = 0;
+                        for (const [id, count] of counts) {
+                            if (count > bestCount) {
+                                best = id;
+                                bestCount = count;
+                            }
+                        }
+                        return best;
+                    };
+                    const pagePath = (page, groupId) =>
+                        ${pathPrefix.toJsString()} + page + (groupId ? "&group_id=" + encodeURIComponent(groupId) : "");
                     let page = 1;
+                    let groupId = "";
                     while (page <= $MAX_CHAPTER_API_PAGES) {
-                        const root = await fetchProtected(${pathPrefix.toJsString()} + page);
+                        const root = await fetchProtected(pagePath(page, groupId));
                         const result = root && root.result ? root.result : root;
                         const items = result && Array.isArray(result.items) ? result.items : [];
                         if (page === 1 && !items.length) {
                             const keys = result && typeof result === "object" ? Object.keys(result).join(",") : typeof result;
                             throw new Error("chapter payload has no items; keys=" + keys);
                         }
-                        for (const item of items) all.push(item);
+                        if (page === 1) {
+                            groupId = mostActiveGroupId(items);
+                            if (groupId) {
+                                all.length = 0;
+                                page = 1;
+                                continue;
+                            }
+                        }
+                        for (const item of items) all.push(compact(item));
                         const pagination = (result && (result.pagination || result.meta)) || {};
                         const currentPage = Number(pagination.page || pagination.current_page || page);
                         const lastPage = Number(pagination.lastPage || pagination.last_page || 1);
                         if (!items.length || currentPage >= lastPage) break;
                         page++;
                     }
-                    return JSON.stringify({ items: all, debug: { pages: page, count: all.length } });
+                    return JSON.stringify({ items: all, debug: { pages: page, count: all.length, groupId } });
                 """.trimIndent(),
             ),
         )
@@ -397,9 +434,9 @@ internal class Comix(context: MangaLoaderContext) :
             (async function() {
                 try {
                     const result = await $script;
-                    window.location.href = "$INTERCEPT_RESULT_URL?data=" + encodeURIComponent(String(result || ""));
+                    window.location.href = "$INTERCEPT_RESULT_URL#data=" + encodeURIComponent(String(result || ""));
                 } catch (e) {
-                    window.location.href = "$INTERCEPT_ERROR_URL?msg=" + encodeURIComponent(String((e && e.message) || e));
+                    window.location.href = "$INTERCEPT_ERROR_URL#msg=" + encodeURIComponent(String((e && e.message) || e));
                 }
             })();
         """.trimIndent()
@@ -548,7 +585,7 @@ internal class Comix(context: MangaLoaderContext) :
     }
 
     private fun String.queryParameterValue(name: String): String? {
-        val query = substringAfter('?', "")
+        val query = substringAfter('#', substringAfter('?', ""))
         if (query.isEmpty()) return null
         return query.split('&')
             .asSequence()
@@ -664,8 +701,9 @@ internal class Comix(context: MangaLoaderContext) :
         private val TERM_KEYS = arrayOf("genres", "genre", "tags", "theme", "demographics", "demographic", "formats")
         private val RELATIVE_DATE_REGEX = Regex("""^(\d+)\s*(s|m|h|d|w|mo|mos|y|yr|yrs|min|mins|sec|secs|hr|hrs|day|days|week|weeks|month|months|year|years)$""")
         private val UNICODE_ESCAPE_REGEX = Regex("""\\u([0-9A-Fa-f]{4})""")
-        private const val WEBVIEW_API_TIMEOUT = 45000L
-        private const val MAX_CHAPTER_API_PAGES = 50
+        private const val WEBVIEW_API_TIMEOUT = 90000L
+        private const val CHAPTER_API_LIMIT = 200
+        private const val MAX_CHAPTER_API_PAGES = 30
         private const val LOG_EXCERPT = 500
         private const val CLOUDFLARE_BLOCKED = "CLOUDFLARE_BLOCKED"
         private const val INTERCEPT_RESULT_URL = "https://kotatsu.intercept/result"
